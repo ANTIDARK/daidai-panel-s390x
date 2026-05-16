@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -88,6 +89,14 @@ jobs:
           GOARM: '7'
         run: go build -ldflags="-s -w -X daidai-panel/handler.Version=${{ steps.version.outputs.VERSION }}" -o daidai-linux-armv7 .
 
+      - name: Build Linux s390x
+        working-directory: server
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: s390x
+        run: go build -ldflags="-s -w -X daidai-panel/handler.Version=${{ steps.version.outputs.VERSION }}" -o daidai-linux-s390x .
+
       - name: Build Windows amd64
         working-directory: server
         env:
@@ -118,6 +127,11 @@ jobs:
 
           cp ../server/daidai-linux-armv7 .
           tar -czvf ../daidai-linux-armv7.tar.gz daidai-linux-armv7 config.yaml web/
+          rm daidai-linux-armv7
+
+          cp ../server/daidai-linux-s390x .
+          tar -czvf ../daidai-linux-s390x.tar.gz daidai-linux-s390x config.yaml web/
+          rm daidai-linux-s390x
           cd ..
 
           # Windows 单机版：二进制 + 独立 config.yaml + start.bat + README，
@@ -147,6 +161,7 @@ jobs:
               daidai-linux-arm64.tar.gz \
               daidai-linux-386.tar.gz \
               daidai-linux-armv7.tar.gz \
+              daidai-linux-s390x.tar.gz \
               daidai-windows-amd64.zip \
               --clobber
           else
@@ -155,6 +170,7 @@ jobs:
               daidai-linux-arm64.tar.gz \
               daidai-linux-386.tar.gz \
               daidai-linux-armv7.tar.gz \
+              daidai-linux-s390x.tar.gz \
               daidai-windows-amd64.zip \
               --title "${GITHUB_REF_NAME}" \
               --notes-file "$NOTES_FILE"
@@ -279,7 +295,7 @@ jobs:
           file: Dockerfile
           # Alpine 镜像基础层 alpine:3.19 在 amd64 / arm64 / 386 / arm/v7 都有 manifest，
           # 所以这里统一覆盖四个平台（含 32 位）。
-          platforms: linux/amd64,linux/arm64,linux/386,linux/arm/v7
+          platforms: linux/amd64,linux/arm64,linux/386,linux/arm/v7,linux/s390x
           push: true
           build-args: VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha,scope=alpine
@@ -314,7 +330,7 @@ jobs:
           file: Dockerfile.debian
           # Debian 镜像第二阶段用的 node:20.19.0-bookworm-slim 官方不提供 linux/386 manifest，
           # 所以这里不能加 linux/386；linux/arm/v7 是 node 官方支持的 32 位 ARM 平台，可以加上。
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x
           push: true
           build-args: VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha,scope=debian
