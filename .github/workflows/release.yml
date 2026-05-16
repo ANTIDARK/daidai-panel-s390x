@@ -46,7 +46,7 @@ jobs:
           CGO_ENABLED: '0'
           GOOS: linux
           GOARCH: amd64
-          VERSION=${{ steps.set_build_time.outputs.BUILD_SUFFIX }}
+          VERSION: ${{ steps.set_build_time.outputs.BUILD_SUFFIX }}
         run: go build -ldflags="-s -w -X daidai-panel/handler.Version=${VERSION}" -o daidai-linux-amd64 .
 
       - name: Build Linux s390x
@@ -55,7 +55,7 @@ jobs:
           CGO_ENABLED: '0'
           GOOS: linux
           GOARCH: s390x
-          VERSION=${{ steps.set_build_time.outputs.BUILD_SUFFIX }}
+          VERSION: ${{ steps.set_build_time.outputs.BUILD_SUFFIX }}
         run: go build -ldflags="-s -w -X daidai-panel/handler.Version=${VERSION}" -o daidai-linux-s390x .
 
       - name: Package
@@ -137,4 +137,3 @@ jobs:
           cache-from: type=gha,scope=alpine
           cache-to: type=gha,mode=max,scope=alpine
           tags: linzixuanzz/daidai-panel:alpine-s390x-${{ needs.build.outputs.build_suffix }}
-*** End Patch
