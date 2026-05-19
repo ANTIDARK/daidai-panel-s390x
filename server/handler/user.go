@@ -63,7 +63,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 	}
 
 	if !validator.ValidateUsername(req.Username) {
-		response.BadRequest(c, "用户名格式不正确")
+		response.BadRequest(c, "用户名需 1-32 位，支持中文、字母、数字和下划线")
 		return
 	}
 	if !validator.ValidatePassword(req.Password) {

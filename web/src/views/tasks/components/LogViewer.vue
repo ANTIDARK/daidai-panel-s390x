@@ -981,14 +981,14 @@ function handleClose() {
 .log-viewer-dialog {
   --viewer-border-soft: color-mix(in srgb, var(--el-border-color-light) 85%, transparent);
 
-  width: min(1240px, 88vw);
+  width: min(1400px, 92vw);
   border-radius: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   // 桌面端按内容观感收紧：
   // 保持足够阅读空间，但避免空日志时出现大面积“黑幕感”。
-  height: clamp(620px, 79dvh, 820px);
+  height: clamp(680px, 85dvh, 920px);
   max-height: calc(100dvh - 56px);
   // align-center 模式下 el-overlay-dialog 是 flex 容器，用 margin: auto 让 dialog 垂直+水平居中；
   // 如果写成 margin: 0 auto 上下 margin 会变成 0，dialog 会贴到容器底部。

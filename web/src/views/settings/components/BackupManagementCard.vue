@@ -37,6 +37,8 @@ defineProps<{
   restoreProgressStartedAt?: string
   restoreRestartCountdown: number
   restoreProgressError: string
+  uploadProgress: number
+  uploadUploading: boolean
   onCreateBackup: () => void | Promise<void>
   onUploadBackup: (event: Event) => void | Promise<void>
   onSaveSchedule: () => void | Promise<void>
@@ -101,6 +103,13 @@ function updateBackupSelection(key: keyof BackupSelection, value: boolean) {
   }
 }
 
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+}
+
 function updateBackupScheduleSelection(key: keyof BackupSelection, value: boolean) {
   backupScheduleSelection.value = {
     ...backupScheduleSelection.value,
@@ -115,8 +124,8 @@ function updateBackupScheduleSelection(key: keyof BackupSelection, value: boolea
       <div class="card-header">
         <span class="card-title"><el-icon><Clock /></el-icon> 数据备份与恢复</span>
         <div class="card-header-buttons">
-          <el-button @click="triggerUploadBackup">
-            <el-icon><Download /></el-icon>导入备份
+          <el-button @click="triggerUploadBackup" :loading="uploadUploading">
+            <el-icon v-if="!uploadUploading"><Download /></el-icon>{{ uploadUploading ? `导入中 ${uploadProgress}%` : '导入备份' }}
           </el-button>
           <el-button type="primary" @click="onCreateBackup">
             <el-icon><Upload /></el-icon>创建备份
@@ -125,6 +134,14 @@ function updateBackupScheduleSelection(key: keyof BackupSelection, value: boolea
         </div>
       </div>
     </template>
+
+    <el-progress
+      v-if="uploadUploading"
+      :percentage="uploadProgress"
+      :stroke-width="6"
+      :show-text="false"
+      style="margin-bottom: 12px"
+    />
 
     <div v-if="isMobile" class="dd-mobile-list">
       <div
@@ -142,7 +159,7 @@ function updateBackupScheduleSelection(key: keyof BackupSelection, value: boolea
           <div class="dd-mobile-card__grid">
             <div class="dd-mobile-card__field">
               <span class="dd-mobile-card__label">大小</span>
-              <span class="dd-mobile-card__value">{{ (row.size / 1024).toFixed(2) }} KB</span>
+              <span class="dd-mobile-card__value">{{ formatSize(row.size) }}</span>
             </div>
           </div>
           <div class="dd-mobile-card__actions backup-actions">
@@ -158,7 +175,7 @@ function updateBackupScheduleSelection(key: keyof BackupSelection, value: boolea
     <el-table v-else :data="backups" v-loading="backupsLoading" empty-text="暂无备份">
       <el-table-column prop="name" label="文件名" min-width="200" />
       <el-table-column label="大小" width="120">
-        <template #default="{ row }">{{ (row.size / 1024).toFixed(2) }} KB</template>
+        <template #default="{ row }">{{ formatSize(row.size) }}</template>
       </el-table-column>
       <el-table-column prop="created_at" label="创建时间" width="170">
         <template #default="{ row }">{{ new Date(row.created_at).toLocaleString() }}</template>
@@ -357,55 +374,53 @@ function updateBackupScheduleSelection(key: keyof BackupSelection, value: boolea
 
 .backup-selection-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .backup-selection-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 2px;
+  padding: 8px 10px;
   border: 1px solid var(--el-border-color-light);
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(59, 130, 246, 0.03), rgba(15, 23, 42, 0)),
-    var(--el-fill-color-extra-light);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  border-radius: 8px;
+  background: var(--el-fill-color-extra-light);
+  transition: border-color 0.2s ease, background 0.2s ease;
   cursor: pointer;
 
   &:hover {
     border-color: rgba(59, 130, 246, 0.35);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-    transform: translateY(-1px);
+    background: var(--el-fill-color-light);
   }
 
   &.is-active {
     border-color: rgba(59, 130, 246, 0.48);
-    background:
-      linear-gradient(180deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.02)),
-      var(--el-bg-color);
-    box-shadow: 0 10px 24px rgba(59, 130, 246, 0.12);
+    background: color-mix(in srgb, var(--el-color-primary) 6%, var(--el-bg-color));
   }
 
   :deep(.el-checkbox) {
-    align-items: flex-start;
+    align-items: center;
     line-height: 1.4;
   }
 
   :deep(.el-checkbox__label) {
     font-weight: 600;
+    font-size: 13px;
     color: var(--el-text-color-primary);
-    padding-left: 10px;
+    padding-left: 8px;
   }
 }
 
 .backup-selection-hint {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
-  line-height: 1.6;
-  margin-left: 26px;
+  line-height: 1.4;
+  margin-left: 30px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .schedule-section {
@@ -470,16 +485,28 @@ function updateBackupScheduleSelection(key: keyof BackupSelection, value: boolea
   color: var(--el-text-color-primary);
 }
 
+@media (max-width: 1200px) {
+  .backup-selection-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   .card-header-buttons {
     width: 100%;
   }
 
   .backup-selection-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .schedule-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .backup-selection-grid {
     grid-template-columns: 1fr;
   }
 }

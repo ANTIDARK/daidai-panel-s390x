@@ -77,6 +77,7 @@ const editForm = ref({
   sub_path: '',
   auth_type: '' as '' | 'ssh' | 'token',
   ssh_key_id: null as number | null,
+  auth_username: '',
   auth_token: '',
   has_auth_token: false,
   alias: '',
@@ -173,7 +174,7 @@ function openCreate() {
   editForm.value = {
     id: 0, name: '', type: 'git-repo', url: '', branch: '', schedule: '',
     whitelist: '', blacklist: '', depend_on: '', hook_script: '', auto_add_task: false,
-    auto_del_task: false, save_dir: '', sub_path: '', auth_type: '', ssh_key_id: null, auth_token: '', has_auth_token: false, alias: '',
+    auto_del_task: false, save_dir: '', sub_path: '', auth_type: '', ssh_key_id: null, auth_username: '', auth_token: '', has_auth_token: false, alias: '',
     force_overwrite: true
   }
   showEditDialog.value = true
@@ -339,7 +340,7 @@ function openEdit(row: any) {
     depend_on: row.depend_on || '', hook_script: row.hook_script || '', auto_add_task: row.auto_add_task,
     auto_del_task: row.auto_del_task, save_dir: row.save_dir || '', sub_path: row.sub_path || '',
     auth_type: row.auth_type || '',
-    ssh_key_id: row.ssh_key_id, auth_token: '', has_auth_token: !!row.has_auth_token, alias: row.alias || '',
+    ssh_key_id: row.ssh_key_id, auth_username: row.auth_username || '', auth_token: '', has_auth_token: !!row.has_auth_token, alias: row.alias || '',
     force_overwrite: row.force_overwrite !== false
   }
   showEditDialog.value = true
@@ -368,13 +369,16 @@ async function handleSave() {
     if (data.type !== 'git-repo') {
       data.auth_type = ''
       data.ssh_key_id = null
+      data.auth_username = ''
       data.auth_token = ''
     } else if (data.auth_type === 'ssh') {
+      data.auth_username = ''
       data.auth_token = ''
     } else if (data.auth_type === 'token') {
       data.ssh_key_id = null
     } else {
       data.ssh_key_id = null
+      data.auth_username = ''
       data.auth_token = ''
     }
     delete (data as any).has_auth_token
@@ -915,6 +919,15 @@ function viewLogDetail(log: any) {
             <el-option v-for="key in sshKeys" :key="key.id" :label="key.name" :value="key.id" />
           </el-select>
         </el-form-item>
+        <el-form-item v-if="editForm.type === 'git-repo' && editForm.auth_type === 'token'" label="鉴权用户名">
+          <el-input
+            v-model="editForm.auth_username"
+            placeholder="留空默认 x-access-token（GitHub 适用）"
+          />
+          <div style="color: var(--el-text-color-secondary); font-size: 12px; margin-top: 4px; line-height: 1.4">
+            GitHub 留空即可；Gitee 填用户名；GitLab 可填 oauth2 或 private-token。
+          </div>
+        </el-form-item>
         <el-form-item v-if="editForm.type === 'git-repo' && editForm.auth_type === 'token'" label="Access Token">
           <el-input
             v-model="editForm.auth_token"
@@ -989,11 +1002,11 @@ function viewLogDetail(log: any) {
       </div>
     </el-dialog>
 
-    <el-dialog v-model="showLogDetail" title="日志详情" width="700px" :fullscreen="dialogFullscreen">
+    <el-dialog v-model="showLogDetail" title="日志详情" width="900px" :fullscreen="dialogFullscreen">
       <pre class="pull-log-content" style="min-height: 100px" v-html="logDetailContentHtml"></pre>
     </el-dialog>
 
-    <el-dialog v-model="showPullLog" title="拉取日志" width="700px" :fullscreen="dialogFullscreen" :close-on-click-modal="false" @close="closePullStream">
+    <el-dialog v-model="showPullLog" title="拉取日志" width="900px" :fullscreen="dialogFullscreen" :close-on-click-modal="false" @close="closePullStream">
       <div ref="pullLogRef" class="pull-log-content">
         <div v-for="(line, i) in pullLogLineHtmlList" :key="i" class="pull-log-line" v-html="line"></div>
         <div v-if="pullRunning" class="pull-log-line pull-running">
@@ -1207,7 +1220,7 @@ function viewLogDetail(log: any) {
 .pull-log-content {
   background: #1e1e1e; color: #d4d4d4; font-family: var(--dd-font-mono, monospace);
   font-size: 13px; line-height: 1.6; padding: 12px 16px; border-radius: 6px;
-  max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+  max-height: 560px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
 }
 .pull-log-line { white-space: pre-wrap; word-break: break-all; }
 .pull-running { color: #e6a23c; display: flex; align-items: center; gap: 8px; }

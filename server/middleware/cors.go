@@ -104,7 +104,7 @@ func CORS() gin.HandlerFunc {
 
 	return cors.New(cors.Config{
 		AllowOriginWithContextFunc: func(c *gin.Context, origin string) bool {
-			if origin == "" {
+			if origin == "" || origin == "null" {
 				return true
 			}
 			if matchesConfiguredOrigin(origin, allowedOrigins) {

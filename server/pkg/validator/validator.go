@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
+var usernameRegex = regexp.MustCompile(`^[\p{L}\p{N}_]{1,32}$`)
 
 func ValidateUsername(username string) bool {
 	return usernameRegex.MatchString(username)

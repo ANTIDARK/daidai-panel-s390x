@@ -154,7 +154,7 @@ function markDebugCodeChanged() {
 .debug-container {
   display: flex;
   gap: 16px;
-  height: min(68dvh, 760px);
+  height: min(76dvh, 860px);
   min-height: clamp(320px, 52dvh, 520px);
   max-height: calc(100dvh - 220px);
   min-width: 0;

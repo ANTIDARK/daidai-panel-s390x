@@ -126,7 +126,7 @@ function handleClose() {
   <el-dialog
     :model-value="visible"
     :title="`日志文件 - ${taskName}`"
-    width="1000px"
+    width="1200px"
     :fullscreen="dialogFullscreen"
     :lock-scroll="false"
     @close="handleClose"
@@ -174,7 +174,7 @@ function handleClose() {
 .log-files-browser {
   display: flex;
   gap: 16px;
-  height: 600px;
+  height: 700px;
 }
 
 .file-list {

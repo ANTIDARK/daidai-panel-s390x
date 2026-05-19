@@ -31,6 +31,7 @@ type Subscription struct {
 	SaveDir     string     `gorm:"size:512;default:''" json:"save_dir"`
 	SSHKeyID    *uint      `json:"ssh_key_id"`
 	AuthType    string     `gorm:"size:16;default:''" json:"auth_type"`
+	AuthUsername string     `gorm:"size:128;default:''" json:"auth_username"`
 	AuthToken   string     `gorm:"type:text;default:''" json:"-"`
 	SubPath     string     `gorm:"size:512;default:''" json:"sub_path"`
 	Alias       string     `gorm:"size:128;default:''" json:"alias"`
@@ -64,6 +65,7 @@ func (s *Subscription) ToDict() map[string]interface{} {
 		"save_dir":        s.SaveDir,
 		"ssh_key_id":      s.SSHKeyID,
 		"auth_type":       s.EffectiveAuthType(),
+		"auth_username":   s.AuthUsername,
 		"has_auth_token":  s.HasAuthToken(),
 		"alias":           s.Alias,
 		"force_overwrite": s.ForceOverwrite == nil || *s.ForceOverwrite,

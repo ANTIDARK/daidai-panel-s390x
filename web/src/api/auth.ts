@@ -77,5 +77,9 @@ export const authApi = {
 
   deleteAvatar() {
     return request.delete('/auth/avatar') as Promise<{ message: string }>
+  },
+
+  changeUsername(username: string) {
+    return request.put('/auth/username', { username }) as Promise<{ message: string; user: any }>
   }
 }

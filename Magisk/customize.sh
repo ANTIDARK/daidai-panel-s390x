@@ -102,20 +102,26 @@ fi
 ui_print "-------------------------------------"
 ui_print ""
 
-# ---- 版本升级时保留用户数据 ---------------------------------------------
+# ---- 保留用户数据（升级 / 重装 / 降级均保护） ----------------------------
 current_ver=$(get_current_version)
 new_ver=$(grep '^versionCode=' $MODPATH/module.prop 2>/dev/null | cut -d'=' -f2)
 
-if [ "$current_ver" != "0" ] && [ "$current_ver" -lt "$new_ver" ] 2>/dev/null; then
-  ui_print "- 检测到版本更新: $current_ver -> $new_ver"
-  ui_print "- 正在保留用户数据..."
-  if [ -d "$rootfs/app/Dumb-Panel" ]; then
-    mkdir -p "$TMPDIR/backup_data" || abort "! 无法创建数据备份目录 $TMPDIR/backup_data"
-    if ! cp -rf "$rootfs/app/Dumb-Panel/." "$TMPDIR/backup_data/" 2>/dev/null; then
-      abort "! 用户数据备份失败（$TMPDIR 空间可能不足），已中止升级以保护数据"
-    fi
-    ui_print "- 数据已备份到 $TMPDIR/backup_data"
+if [ -d "$rootfs/app/Dumb-Panel" ]; then
+  if [ "$current_ver" != "0" ] && [ "$current_ver" != "$new_ver" ] 2>/dev/null; then
+    ui_print "- 检测到版本变更: $current_ver -> $new_ver"
+  else
+    ui_print "- 检测到已有面板数据"
   fi
+  ui_print "- 正在保留用户数据..."
+  mkdir -p "$TMPDIR/backup_data" || abort "! 无法创建数据备份目录 $TMPDIR/backup_data"
+  if ! cp -rf "$rootfs/app/Dumb-Panel/." "$TMPDIR/backup_data/" 2>/dev/null; then
+    abort "! 用户数据备份失败（$TMPDIR 空间可能不足），已中止安装以保护数据"
+  fi
+  backup_count=$(ls -1 "$TMPDIR/backup_data/" 2>/dev/null | wc -l)
+  if [ "$backup_count" -eq 0 ]; then
+    abort "! 数据备份目录为空，可能复制失败，已中止安装以保护数据"
+  fi
+  ui_print "- 数据已备份到 $TMPDIR/backup_data ($backup_count 项)"
   mkdir -p "$PERSIST_DIR"
   echo "$current_ver" > "$UPDATE_FLAG"
 fi
@@ -139,6 +145,10 @@ if [ -d "$rootfs" ]; then
 fi
 
 # ---- 清掉旧 rootfs 重装 -------------------------------------------------
+# 安全检查：如果面板数据存在但备份未完成，禁止继续
+if [ -d "$rootfs/app/Dumb-Panel" ] && [ ! -d "$TMPDIR/backup_data" ]; then
+  abort "! 面板数据存在但未成功备份，已中止安装以保护数据。请重试或手动备份 $rootfs/app/Dumb-Panel"
+fi
 rm -rf $rootfs
 
 ui_print "- 请勿切换到后台，避免下载失败！"

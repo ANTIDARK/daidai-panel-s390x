@@ -188,6 +188,7 @@ func (h *SubscriptionHandler) Create(c *gin.Context) {
 		SubPath        string `json:"sub_path"`
 		SSHKeyID       *uint  `json:"ssh_key_id"`
 		AuthType       string `json:"auth_type"`
+		AuthUsername    string `json:"auth_username"`
 		AuthToken      string `json:"auth_token"`
 		Alias          string `json:"alias"`
 		ForceOverwrite *bool  `json:"force_overwrite"`
@@ -227,6 +228,7 @@ func (h *SubscriptionHandler) Create(c *gin.Context) {
 		SubPath:        req.SubPath,
 		SSHKeyID:       sshKeyID,
 		AuthType:       authType,
+		AuthUsername:    req.AuthUsername,
 		AuthToken:      authToken,
 		Alias:          req.Alias,
 		ForceOverwrite: req.ForceOverwrite,
@@ -264,7 +266,7 @@ func (h *SubscriptionHandler) Update(c *gin.Context) {
 		"name": true, "type": true, "url": true, "branch": true,
 		"schedule": true, "whitelist": true, "blacklist": true,
 		"depend_on": true, "hook_script": true, "auto_add_task": true, "auto_del_task": true,
-		"save_dir": true, "sub_path": true, "ssh_key_id": true, "auth_type": true, "auth_token": true, "alias": true, "force_overwrite": true,
+		"save_dir": true, "sub_path": true, "ssh_key_id": true, "auth_type": true, "auth_username": true, "auth_token": true, "alias": true, "force_overwrite": true,
 	}
 	updates := make(map[string]interface{})
 	for k, v := range req {

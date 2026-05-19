@@ -45,7 +45,8 @@ func buildGitAuthConfig(baseEnv []string, remoteURL string, sub *model.Subscript
 		if strings.HasPrefix(strings.ToLower(remoteURL), "ssh://") || strings.Contains(remoteURL, "@") && strings.Contains(remoteURL, ":") && !strings.Contains(remoteURL, "://") {
 			return gitAuthConfig{}, fmt.Errorf("Token 鉴权仅支持 HTTP/HTTPS 仓库地址，请改用 HTTPS 地址")
 		}
-		headerValue := "Authorization: Basic " + buildGitBasicAuthValue(sub.AuthToken)
+		username := strings.TrimSpace(sub.AuthUsername)
+		headerValue := "Authorization: Basic " + buildGitBasicAuthValue(username, sub.AuthToken)
 		env = append(env, "GIT_HTTP_EXTRA_HEADER="+headerValue)
 	}
 
@@ -90,11 +91,15 @@ func shellEscapeSSHArg(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
-func buildGitBasicAuthValue(token string) string {
-	encoded := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + strings.TrimSpace(token)))
+func buildGitBasicAuthValue(username, token string) string {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		username = "x-access-token"
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(username + ":" + strings.TrimSpace(token)))
 	return encoded
 }
 
-func buildGitHTTPAuthHeader(token string) string {
-	return "Authorization: Basic " + buildGitBasicAuthValue(token)
+func buildGitHTTPAuthHeader(username, token string) string {
+	return "Authorization: Basic " + buildGitBasicAuthValue(username, token)
 }

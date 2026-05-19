@@ -85,8 +85,8 @@ func TestBuildGitAuthConfigUsesHTTPHeaderForTokenAuth(t *testing.T) {
 	if header == "" {
 		t.Fatalf("expected GIT_HTTP_EXTRA_HEADER to be set, env=%v", cfg.Env)
 	}
-	if header != buildGitHTTPAuthHeader(sub.AuthToken) {
-		t.Fatalf("unexpected auth header: got %q want %q", header, buildGitHTTPAuthHeader(sub.AuthToken))
+	if header != buildGitHTTPAuthHeader(sub.AuthUsername, sub.AuthToken) {
+		t.Fatalf("unexpected auth header: got %q want %q", header, buildGitHTTPAuthHeader(sub.AuthUsername, sub.AuthToken))
 	}
 }
 

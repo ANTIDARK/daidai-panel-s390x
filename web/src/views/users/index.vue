@@ -83,8 +83,8 @@ async function handleCreate() {
     ElMessage.warning('用户名不能为空')
     return
   }
-  if (!/^[A-Za-z0-9_]{3,32}$/.test(username)) {
-    ElMessage.warning('用户名须为 3-32 位字母/数字/下划线')
+  if (!/^[\p{L}\p{N}_]{1,32}$/u.test(username)) {
+    ElMessage.warning('用户名需 1-32 位，支持中文、字母、数字和下划线')
     return
   }
   const pwdErr = validatePassword(createForm.value.password)
