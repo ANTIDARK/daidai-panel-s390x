@@ -540,26 +540,58 @@ func subscriptionSaveDir(sub *model.Subscription) string {
 	return saveDir
 }
 
+// isWildcardFilterPattern 判断"用户填的 pattern 是不是通配符"——
+// 如 `*`、`**`、`*.*`、`.*`、`/`、`all`。这些显然是用户想"全部放行"的意图，
+// 但旧逻辑用 strings.Contains 字面匹配 → 全部不匹配 → 全部文件被过滤掉。
+// 现在视为"等价于不填"。
+func isWildcardFilterPattern(p string) bool {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return true
+	}
+	switch strings.ToLower(p) {
+	case "*", "**", "*.*", ".*", "/", "all", "any", "全部":
+		return true
+	}
+	return false
+}
+
 func matchesSubscriptionFilters(sub *model.Subscription, filename string) bool {
 	if sub.Whitelist != "" {
+		hasNonWildcard := false
 		matched := false
 		for _, pattern := range strings.Split(sub.Whitelist, ",") {
 			pattern = strings.TrimSpace(pattern)
-			if pattern != "" && strings.Contains(filename, pattern) {
+			if pattern == "" {
+				continue
+			}
+			if isWildcardFilterPattern(pattern) {
+				return checkBlacklist(sub, filename)
+			}
+			hasNonWildcard = true
+			if strings.Contains(filename, pattern) {
 				matched = true
 				break
 			}
 		}
-		if !matched {
+		if hasNonWildcard && !matched {
 			return false
 		}
 	}
-	if sub.Blacklist != "" {
-		for _, pattern := range strings.Split(sub.Blacklist, ",") {
-			pattern = strings.TrimSpace(pattern)
-			if pattern != "" && strings.Contains(filename, pattern) {
-				return false
-			}
+	return checkBlacklist(sub, filename)
+}
+
+func checkBlacklist(sub *model.Subscription, filename string) bool {
+	if sub.Blacklist == "" {
+		return true
+	}
+	for _, pattern := range strings.Split(sub.Blacklist, ",") {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" || isWildcardFilterPattern(pattern) {
+			continue
+		}
+		if strings.Contains(filename, pattern) {
+			return false
 		}
 	}
 	return true
@@ -836,6 +868,32 @@ func collectSubscriptionTaskCandidates(sub *model.Subscription, options subscrip
 		return candidates
 	}
 
+	// 收集"所有受支持扩展名的文件"。用 walk + 兜底的 ReadDir，确保:
+	// 1) 子目录里的脚本能扫到（用 walk）
+	// 2) 即使 walk 在某些挂载卷（NAS / Android Magisk 容器）下 readdir 异常返回 0，
+	//    至少根目录平铺扫一遍兜底
+	type fileEntry struct {
+		path string
+		info os.FileInfo
+	}
+	var allFiles []fileEntry
+	seen := map[string]bool{}
+
+	addEntry := func(path string, info os.FileInfo) {
+		if info == nil || info.IsDir() {
+			return
+		}
+		ext := strings.ToLower(filepath.Ext(info.Name()))
+		if !options.allowedExts[ext] {
+			return
+		}
+		if seen[path] {
+			return
+		}
+		seen[path] = true
+		allFiles = append(allFiles, fileEntry{path: path, info: info})
+	}
+
 	filepath.Walk(scriptsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
@@ -847,9 +905,53 @@ func collectSubscriptionTaskCandidates(sub *model.Subscription, options subscrip
 			}
 			return nil
 		}
+		addEntry(path, info)
+		return nil
+	})
 
-		if !shouldManageSubscriptionFile(sub, info.Name(), options.allowedExts) {
-			return nil
+	// 兜底：walk 一个文件都没拿到，平铺扫根目录（不递归）
+	if len(allFiles) == 0 {
+		entries, _ := os.ReadDir(scriptsDir)
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			fullPath := filepath.Join(scriptsDir, entry.Name())
+			info, err := entry.Info()
+			if err != nil {
+				if stat, statErr := os.Stat(fullPath); statErr == nil {
+					info = stat
+				} else {
+					continue
+				}
+			}
+			addEntry(fullPath, info)
+		}
+	}
+
+	// 兜底 #2：白/黑名单填错了导致全部被过滤 → 自动忽略过滤规则
+	effectiveSub := sub
+	if (sub.Whitelist != "" || sub.Blacklist != "") && len(allFiles) > 0 {
+		matchedCount := 0
+		for _, f := range allFiles {
+			if matchesSubscriptionFilters(sub, f.info.Name()) {
+				matchedCount++
+			}
+		}
+		if matchedCount == 0 {
+			fallback := *sub
+			fallback.Whitelist = ""
+			fallback.Blacklist = ""
+			effectiveSub = &fallback
+		}
+	}
+
+	for _, f := range allFiles {
+		path := f.path
+		info := f.info
+
+		if !shouldManageSubscriptionFile(effectiveSub, info.Name(), options.allowedExts) {
+			continue
 		}
 
 		// 先尝试从脚本头部识别 cron。脚本明确写了 cron 就完全按它来。
@@ -860,17 +962,17 @@ func collectSubscriptionTaskCandidates(sub *model.Subscription, options subscrip
 			//   2) 否则用兜底 cron（系统配置 default_cron_rule，或硬兜底每天 0 点）
 			//      —— 保证 git 拉到的业务脚本必定变成任务，不会"明明拉成功但任务列表空"
 			if isSubscriptionHelperScript(info.Name()) {
-				return nil
+				continue
 			}
 			cronExpr = options.defaultCron
 			if cronExpr == "" {
-				return nil
+				continue
 			}
 		}
 
 		relPath, err := filepath.Rel(config.C.Data.ScriptsDir, path)
 		if err != nil {
-			return nil
+			continue
 		}
 		command := "task " + relPath
 		taskName := resolveSubscriptionTaskName(path, strings.TrimSuffix(info.Name(), filepath.Ext(info.Name())))
@@ -879,8 +981,7 @@ func collectSubscriptionTaskCandidates(sub *model.Subscription, options subscrip
 			Command:        command,
 			CronExpression: cronExpr,
 		}
-		return nil
-	})
+	}
 
 	return candidates
 }
