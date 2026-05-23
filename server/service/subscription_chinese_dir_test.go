@@ -128,6 +128,79 @@ func TestSyncSubscriptionTasksFallsBackWhenWhitelistFiltersEverythingOut(t *test
 	}
 }
 
+func TestSyncSubscriptionTasksBlacklistMatchesDirectoryPath(t *testing.T) {
+	testutil.SetupTestEnv(t)
+	saveDir := "path_filter"
+	scriptsRoot := filepath.Join(config.C.Data.ScriptsDir, saveDir)
+	backupDir := filepath.Join(scriptsRoot, "Backup")
+	os.MkdirAll(backupDir, 0o755)
+
+	os.WriteFile(filepath.Join(scriptsRoot, "daily.js"),
+		[]byte("//cron: 15 12 * * *\nconst $ = new Env('daily');\n"), 0o644)
+	os.WriteFile(filepath.Join(backupDir, "backup_task.js"),
+		[]byte("//cron: 20 12 * * *\nconst $ = new Env('backup');\n"), 0o644)
+
+	sub := &model.Subscription{
+		Name: "path_filter", Type: model.SubTypeGitRepo,
+		URL: "https://github.com/u/r.git", SaveDir: saveDir,
+		AutoAddTask: true, Enabled: true,
+		Blacklist: "Backup",
+	}
+	database.DB.Create(sub)
+
+	InitSchedulerV2()
+	defer ShutdownSchedulerV2()
+
+	syncSubscriptionTasks(sub, func(string) {})
+
+	var tasks []model.Task
+	queryTasksByLabel(subscriptionTaskLabel(sub.ID)).Find(&tasks)
+	if len(tasks) != 1 {
+		for _, task := range tasks {
+			t.Logf("  task: cmd=%q cron=%q", task.Command, task.CronExpression)
+		}
+		t.Fatalf("expected only the root script task after Backup blacklist, got %d", len(tasks))
+	}
+	if filepath.Base(tasks[0].Command) != "daily.js" {
+		t.Fatalf("blacklisted Backup script should not be created, got command %q", tasks[0].Command)
+	}
+	if tasks[0].CronExpression != "15 12 * * *" {
+		t.Fatalf("expected //cron expression to be preserved, got %q", tasks[0].CronExpression)
+	}
+}
+
+func TestSyncSubscriptionTasksBlacklistCanFilterEverythingWithoutFallback(t *testing.T) {
+	testutil.SetupTestEnv(t)
+	saveDir := "blacklist_all"
+	scriptsRoot := filepath.Join(config.C.Data.ScriptsDir, saveDir)
+	backupDir := filepath.Join(scriptsRoot, "Backup")
+	os.MkdirAll(backupDir, 0o755)
+	os.WriteFile(filepath.Join(backupDir, "backup_task.js"),
+		[]byte("//cron: 20 12 * * *\nconst $ = new Env('backup');\n"), 0o644)
+
+	sub := &model.Subscription{
+		Name: "blacklist_all", Type: model.SubTypeGitRepo,
+		URL: "https://github.com/u/r.git", SaveDir: saveDir,
+		AutoAddTask: true, Enabled: true,
+		Blacklist: "Backup",
+	}
+	database.DB.Create(sub)
+
+	InitSchedulerV2()
+	defer ShutdownSchedulerV2()
+
+	syncSubscriptionTasks(sub, func(string) {})
+
+	var tasks []model.Task
+	queryTasksByLabel(subscriptionTaskLabel(sub.ID)).Find(&tasks)
+	if len(tasks) != 0 {
+		for _, task := range tasks {
+			t.Logf("  task: cmd=%q cron=%q", task.Command, task.CronExpression)
+		}
+		t.Fatalf("blacklist-only filter should not fallback and recreate excluded scripts, got %d tasks", len(tasks))
+	}
+}
+
 // 用户在白名单填了 `*` 通配符（最常见的"我要全部"误用）→ 视为不过滤。
 func TestSyncSubscriptionTasksTreatsWildcardWhitelistAsNoFilter(t *testing.T) {
 	testutil.SetupTestEnv(t)

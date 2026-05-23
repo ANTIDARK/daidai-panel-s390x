@@ -940,10 +940,10 @@ function viewLogDetail(log: any) {
           </div>
         </el-form-item>
         <el-form-item label="白名单">
-          <el-input v-model="editForm.whitelist" placeholder="文件名白名单 (逗号分隔)" />
+          <el-input v-model="editForm.whitelist" placeholder="文件名/路径白名单 (逗号分隔)" />
         </el-form-item>
         <el-form-item label="黑名单">
-          <el-input v-model="editForm.blacklist" placeholder="文件名黑名单 (逗号分隔)" />
+          <el-input v-model="editForm.blacklist" placeholder="文件名/路径黑名单 (逗号分隔，如 Backup)" />
         </el-form-item>
         <el-form-item label="依赖说明">
           <el-input v-model="editForm.depend_on" placeholder="用于记录订阅依赖、过滤说明或迁移信息" />

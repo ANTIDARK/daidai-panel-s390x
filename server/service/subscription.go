@@ -556,32 +556,64 @@ func isWildcardFilterPattern(p string) bool {
 	return false
 }
 
-func matchesSubscriptionFilters(sub *model.Subscription, filename string) bool {
-	if sub.Whitelist != "" {
-		hasNonWildcard := false
-		matched := false
-		for _, pattern := range strings.Split(sub.Whitelist, ",") {
-			pattern = strings.TrimSpace(pattern)
-			if pattern == "" {
-				continue
-			}
-			if isWildcardFilterPattern(pattern) {
-				return checkBlacklist(sub, filename)
-			}
-			hasNonWildcard = true
-			if strings.Contains(filename, pattern) {
-				matched = true
-				break
-			}
-		}
-		if hasNonWildcard && !matched {
-			return false
-		}
-	}
-	return checkBlacklist(sub, filename)
+func normalizeSubscriptionFilterTarget(value string) string {
+	value = strings.TrimSpace(filepath.ToSlash(value))
+	value = strings.TrimPrefix(value, "./")
+	value = strings.TrimPrefix(value, "/")
+	return value
 }
 
-func checkBlacklist(sub *model.Subscription, filename string) bool {
+func subscriptionFilterContains(target string, pattern string) bool {
+	target = normalizeSubscriptionFilterTarget(target)
+	pattern = normalizeSubscriptionFilterTarget(pattern)
+	if target == "" || pattern == "" {
+		return false
+	}
+	return strings.Contains(target, pattern)
+}
+
+func splitSubscriptionFilterPatterns(raw string) []string {
+	var patterns []string
+	for _, pattern := range strings.Split(raw, ",") {
+		pattern = strings.TrimSpace(pattern)
+		if pattern != "" {
+			patterns = append(patterns, pattern)
+		}
+	}
+	return patterns
+}
+
+func hasNonWildcardSubscriptionFilter(raw string) bool {
+	for _, pattern := range splitSubscriptionFilterPatterns(raw) {
+		if !isWildcardFilterPattern(pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesSubscriptionWhitelist(sub *model.Subscription, filePath string) bool {
+	hasNonWildcard := false
+	for _, pattern := range splitSubscriptionFilterPatterns(sub.Whitelist) {
+		if isWildcardFilterPattern(pattern) {
+			return true
+		}
+		hasNonWildcard = true
+		if subscriptionFilterContains(filePath, pattern) {
+			return true
+		}
+	}
+	return !hasNonWildcard
+}
+
+func matchesSubscriptionFilters(sub *model.Subscription, filePath string) bool {
+	if !matchesSubscriptionWhitelist(sub, filePath) {
+		return false
+	}
+	return checkBlacklist(sub, filePath)
+}
+
+func checkBlacklist(sub *model.Subscription, filePath string) bool {
 	if sub.Blacklist == "" {
 		return true
 	}
@@ -590,7 +622,7 @@ func checkBlacklist(sub *model.Subscription, filename string) bool {
 		if pattern == "" || isWildcardFilterPattern(pattern) {
 			continue
 		}
-		if strings.Contains(filename, pattern) {
+		if subscriptionFilterContains(filePath, pattern) {
 			return false
 		}
 	}
@@ -751,7 +783,8 @@ func countSubscriptionScriptFiles(scriptsDir string, allowedExts map[string]bool
 			}
 			return nil
 		}
-		if shouldManageSubscriptionFile(sub, info.Name(), allowedExts) {
+		relPath := subscriptionRelativeScriptPath(scriptsDir, path, info)
+		if shouldManageSubscriptionFile(sub, relPath, allowedExts) {
 			count++
 		}
 		return nil
@@ -813,11 +846,11 @@ func getSubscriptionAllowedExtensions(raw string) map[string]bool {
 	}
 
 	return map[string]bool{
-		".js": true,
+		".js":  true,
 		".mjs": true,
-		".ts": true,
-		".py": true,
-		".sh": true,
+		".ts":  true,
+		".py":  true,
+		".sh":  true,
 	}
 }
 
@@ -826,21 +859,21 @@ func getSubscriptionAllowedExtensions(raw string) map[string]bool {
 // 即使没有 cron 头并且系统配置了 default_cron_rule 兜底也不建。
 // 名字按"去掉扩展名后的 basename，小写"匹配。
 var subscriptionHelperScriptNames = map[string]bool{
-	"sendnotify":   true, // QLScriptPublic / jdpro 风格的通知 helper（多种大小写拼写都收）
-	"sendnofity":   true, // 实际仓库里 sendNofity.js 这种笔误也常见
-	"notify":       true, // 青龙原版 notify.py
-	"sendnotify_":  true, // sendNotify_.js 这种带下划线后缀的变体
-	"jdcookie":     true,
-	"ql":           true,
-	"qlapi":        true,
-	"utils":        true,
-	"util":         true,
-	"common":       true,
-	"helper":       true,
-	"sign":         true, // 通用签名 helper
-	"magic":        true, // jd_magic 类
-	"jsencrypt":    true,
-	"cryptojs":     true,
+	"sendnotify":  true, // QLScriptPublic / jdpro 风格的通知 helper（多种大小写拼写都收）
+	"sendnofity":  true, // 实际仓库里 sendNofity.js 这种笔误也常见
+	"notify":      true, // 青龙原版 notify.py
+	"sendnotify_": true, // sendNotify_.js 这种带下划线后缀的变体
+	"jdcookie":    true,
+	"ql":          true,
+	"qlapi":       true,
+	"utils":       true,
+	"util":        true,
+	"common":      true,
+	"helper":      true,
+	"sign":        true, // 通用签名 helper
+	"magic":       true, // jd_magic 类
+	"jsencrypt":   true,
+	"cryptojs":    true,
 }
 
 // isSubscriptionHelperScript 判断"该脚本是不是被业务脚本调用的辅助脚本"。
@@ -851,12 +884,22 @@ func isSubscriptionHelperScript(filename string) bool {
 	return subscriptionHelperScriptNames[base]
 }
 
-func shouldManageSubscriptionFile(sub *model.Subscription, filename string, allowedExts map[string]bool) bool {
-	ext := strings.ToLower(filepath.Ext(filename))
+func subscriptionRelativeScriptPath(root, path string, info os.FileInfo) string {
+	if rel, err := filepath.Rel(root, path); err == nil && rel != "" && rel != "." {
+		return rel
+	}
+	if info != nil {
+		return info.Name()
+	}
+	return filepath.Base(path)
+}
+
+func shouldManageSubscriptionFile(sub *model.Subscription, filePath string, allowedExts map[string]bool) bool {
+	ext := strings.ToLower(filepath.Ext(filePath))
 	if !allowedExts[ext] {
 		return false
 	}
-	return matchesSubscriptionFilters(sub, filename)
+	return matchesSubscriptionFilters(sub, filePath)
 }
 
 func collectSubscriptionTaskCandidates(sub *model.Subscription, options subscriptionTaskSyncOptions) map[string]subscriptionTaskCandidate {
@@ -873,8 +916,9 @@ func collectSubscriptionTaskCandidates(sub *model.Subscription, options subscrip
 	// 2) 即使 walk 在某些挂载卷（NAS / Android Magisk 容器）下 readdir 异常返回 0，
 	//    至少根目录平铺扫一遍兜底
 	type fileEntry struct {
-		path string
-		info os.FileInfo
+		path    string
+		relPath string
+		info    os.FileInfo
 	}
 	var allFiles []fileEntry
 	seen := map[string]bool{}
@@ -891,7 +935,11 @@ func collectSubscriptionTaskCandidates(sub *model.Subscription, options subscrip
 			return
 		}
 		seen[path] = true
-		allFiles = append(allFiles, fileEntry{path: path, info: info})
+		allFiles = append(allFiles, fileEntry{
+			path:    path,
+			relPath: subscriptionRelativeScriptPath(scriptsDir, path, info),
+			info:    info,
+		})
 	}
 
 	filepath.Walk(scriptsDir, func(path string, info os.FileInfo, err error) error {
@@ -934,11 +982,11 @@ func collectSubscriptionTaskCandidates(sub *model.Subscription, options subscrip
 	if (sub.Whitelist != "" || sub.Blacklist != "") && len(allFiles) > 0 {
 		matchedCount := 0
 		for _, f := range allFiles {
-			if matchesSubscriptionFilters(sub, f.info.Name()) {
+			if matchesSubscriptionFilters(sub, f.relPath) {
 				matchedCount++
 			}
 		}
-		if matchedCount == 0 {
+		if matchedCount == 0 && hasNonWildcardSubscriptionFilter(sub.Whitelist) {
 			fallback := *sub
 			fallback.Whitelist = ""
 			fallback.Blacklist = ""
@@ -950,7 +998,7 @@ func collectSubscriptionTaskCandidates(sub *model.Subscription, options subscrip
 		path := f.path
 		info := f.info
 
-		if !shouldManageSubscriptionFile(effectiveSub, info.Name(), options.allowedExts) {
+		if !shouldManageSubscriptionFile(effectiveSub, f.relPath, options.allowedExts) {
 			continue
 		}
 

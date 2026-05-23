@@ -197,6 +197,20 @@ func TestResolveCronForSubscriptionTaskSupportsHashCronWithoutColon(t *testing.T
 	}
 }
 
+func TestResolveCronForSubscriptionTaskSupportsSlashSlashCron(t *testing.T) {
+	root := t.TempDir()
+	scriptPath := filepath.Join(root, "daily.js")
+	content := "//cron: 15 12 * * *\nconst $ = new Env('daily');\n"
+	if err := os.WriteFile(scriptPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	got := resolveCronForSubscriptionTask(scriptPath, "")
+	if got != "15 12 * * *" {
+		t.Fatalf("expected cron from //cron header, got %q", got)
+	}
+}
+
 // QLScriptPublic 真实样例：Python docstring 中 `cron <expr>`（无注释符号、无冒号），
 // 例：`cron 0 12 * * *`（daily/sfsy.py）。
 func TestResolveCronForSubscriptionTaskSupportsBareCronWithoutColon(t *testing.T) {

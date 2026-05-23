@@ -257,11 +257,14 @@ func buildTaskDisplayLabels(labels []string, subscriptionNames map[uint]string) 
 	return displayLabels
 }
 
+const taskGroupLabelPrefix = "分组:"
+
 func buildPreparedTaskLabels(labels []string, subscriptionNames map[uint]string) ([]string, []string) {
 	displayLabels := make([]string, 0, len(labels))
 	subscriptionLabels := make([]string, 0, len(labels))
 	seen := make(map[string]struct{})
 	seenSubscriptions := make(map[string]struct{})
+	groupName := ""
 
 	addLabel := func(label string) {
 		label = strings.TrimSpace(label)
@@ -287,6 +290,15 @@ func buildPreparedTaskLabels(labels []string, subscriptionNames map[uint]string)
 	}
 
 	for _, label := range labels {
+		trimmed := strings.TrimSpace(label)
+		if strings.HasPrefix(trimmed, taskGroupLabelPrefix) {
+			group := strings.TrimSpace(strings.TrimPrefix(trimmed, taskGroupLabelPrefix))
+			if group != "" && groupName == "" {
+				groupName = group
+			}
+			continue
+		}
+
 		if !strings.HasPrefix(label, "subscription:") {
 			addLabel(label)
 			continue
@@ -306,6 +318,10 @@ func buildPreparedTaskLabels(labels []string, subscriptionNames map[uint]string)
 
 		addLabel("订阅任务")
 		addSubscriptionLabel("订阅任务")
+	}
+
+	if groupName != "" {
+		displayLabels = append([]string{groupName}, displayLabels...)
 	}
 
 	return displayLabels, subscriptionLabels
