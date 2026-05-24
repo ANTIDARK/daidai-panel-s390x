@@ -129,7 +129,7 @@ jobs:
           build-args: VERSION=${{ needs.build.outputs.build_suffix }}
           cache-from: type=gha,scope=alpine
           cache-to: type=gha,mode=max,scope=alpine
-          tags: ghcr.io/linzixuanzz/daidai-panel:alpine-amd64-${{ needs.build.outputs.build_suffix }}
+          tags: ghcr.io/ANTIDARK/daidai-panel:alpine-amd64-${{ needs.build.outputs.build_suffix }}
 
       - name: Build and push Alpine image for s390x
         uses: docker/build-push-action@v6
@@ -141,4 +141,4 @@ jobs:
           build-args: VERSION=${{ needs.build.outputs.build_suffix }}
           cache-from: type=gha,scope=alpine
           cache-to: type=gha,mode=max,scope=alpine
-          tags: ghcr.io/linzixuanzz/daidai-panel:alpine-s390x-${{ needs.build.outputs.build_suffix }}
+          tags: ghcr.io/ANTIDARK/daidai-panel:alpine-s390x-${{ needs.build.outputs.build_suffix }}
