@@ -454,9 +454,14 @@ func (h *DepsHandler) Cancel(c *gin.Context) {
 }
 
 func (h *DepsHandler) PipList(c *gin.Context) {
-	out, err := exec.Command("pip3", "list", "--format=json").Output()
+	pipEnv := service.SanitizePipEnv(os.Environ())
+	listCmd := exec.Command("pip3", "list", "--format=json")
+	listCmd.Env = pipEnv
+	out, err := listCmd.Output()
 	if err != nil {
-		out, err = exec.Command("pip", "list", "--format=json").Output()
+		fallback := exec.Command("pip", "list", "--format=json")
+		fallback.Env = pipEnv
+		out, err = fallback.Output()
 		if err != nil {
 			response.InternalError(c, "pip 不可用")
 			return
@@ -738,11 +743,8 @@ func installDependency(id uint, depType, name string) {
 		cmd = exec.Command("npm", "install", "--prefix", filepath.Join(depsDir, "nodejs"), name)
 		cmd.Env = service.NpmInstallEnv(service.AppendProxyEnv(os.Environ()), service.CurrentNpmMirror())
 	case model.DepTypePython:
-		pipBin := service.ResolveManagedPipBinary()
-		if strings.TrimSpace(pipBin) == "" {
-			pipBin = "pip"
-		}
-		cmd = exec.Command(pipBin, "install", name)
+		pipBin, extraFlags, _ := service.ResolvePipInstallCommand()
+		cmd = exec.Command(pipBin, service.BuildPipInstallArgs(extraFlags, name)...)
 		cmd.Env = append(service.PipInstallEnv(service.AppendProxyEnv(os.Environ()), service.CurrentPipMirror()), "TMPDIR=/tmp")
 	case model.DepTypeLinux:
 		linuxPackageOperationMu.Lock()
@@ -787,12 +789,9 @@ func uninstallDependency(id uint, depType, name string) {
 		cmd = exec.Command("npm", "uninstall", "--prefix", filepath.Join(depsDir, "nodejs"), name)
 		cmd.Env = service.AppendProxyEnv(os.Environ())
 	case model.DepTypePython:
-		pipBin := service.ResolveManagedPipBinary()
-		if strings.TrimSpace(pipBin) == "" {
-			pipBin = "pip"
-		}
-		cmd = exec.Command(pipBin, "uninstall", "-y", name)
-		cmd.Env = service.AppendProxyEnv(os.Environ())
+		pipBin, extraFlags, _ := service.ResolvePipInstallCommand()
+		cmd = exec.Command(pipBin, service.BuildPipUninstallArgs(extraFlags, name)...)
+		cmd.Env = service.SanitizePipEnv(service.AppendProxyEnv(os.Environ()))
 	case model.DepTypeLinux:
 		linuxPackageOperationMu.Lock()
 		defer linuxPackageOperationMu.Unlock()
@@ -824,12 +823,9 @@ func forceUninstallDependency(depType, name string) {
 		cmd = exec.Command("npm", "uninstall", "--prefix", filepath.Join(depsDir, "nodejs"), "--force", name)
 		cmd.Env = service.AppendProxyEnv(os.Environ())
 	case model.DepTypePython:
-		pipBin := service.ResolveManagedPipBinary()
-		if strings.TrimSpace(pipBin) == "" {
-			pipBin = "pip"
-		}
-		cmd = exec.Command(pipBin, "uninstall", "-y", "--no-deps", name)
-		cmd.Env = service.AppendProxyEnv(os.Environ())
+		pipBin, extraFlags, _ := service.ResolvePipInstallCommand()
+		cmd = exec.Command(pipBin, service.BuildPipUninstallArgs(extraFlags, name, "--no-deps")...)
+		cmd.Env = service.SanitizePipEnv(service.AppendProxyEnv(os.Environ()))
 	case model.DepTypeLinux:
 		linuxPackageOperationMu.Lock()
 		defer linuxPackageOperationMu.Unlock()

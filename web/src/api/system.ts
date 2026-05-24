@@ -84,12 +84,15 @@ export const systemApi = {
     request.delete('/system/backup', { params: { filename } }),
   healthStatus: () => request.get('/system/health-check') as Promise<SystemHealthSnapshot>,
   healthCheck: () => request.post('/system/health-check') as Promise<SystemHealthSnapshot>,
-  uploadBackup: (file: File) => {
+  uploadBackup: (file: File, onProgress?: (percent: number) => void) => {
     const formData = new FormData()
     formData.append('file', file)
     return request.post('/system/backup/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 0,
+      onUploadProgress: onProgress
+        ? (e: any) => { if (e.total) onProgress(Math.round((e.loaded * 100) / e.total)) }
+        : undefined,
     })
   },
 }

@@ -720,7 +720,7 @@ onBeforeUnmount(() => {
     <el-dialog
       v-model="showFileBrowser"
       title="日志文件"
-      width="680px"
+      width="900px"
       :fullscreen="dialogFullscreen"
       class="log-files-dialog"
     >
@@ -742,7 +742,7 @@ onBeforeUnmount(() => {
       <el-empty v-if="!logFilesLoading && logFiles.length === 0" description="暂无日志文件" />
     </el-dialog>
 
-    <el-dialog v-model="showFileContent" :title="fileContentName" width="820px" :fullscreen="dialogFullscreen">
+    <el-dialog v-model="showFileContent" :title="fileContentName" width="1100px" :fullscreen="dialogFullscreen">
       <pre class="detail-log dd-log-surface" v-html="fileContentHtml"></pre>
     </el-dialog>
   </div>
@@ -1054,8 +1054,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  width: min(1120px, 84vw);
-  height: clamp(600px, 77dvh, 800px);
+  width: min(1400px, 92vw);
+  height: clamp(680px, 85dvh, 920px);
   max-height: calc(100dvh - 64px);
   margin: auto;
 

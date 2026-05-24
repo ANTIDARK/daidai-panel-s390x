@@ -816,7 +816,7 @@ async function handleImport(event: Event) {
         :row-style="{ cursor: 'pointer' }"
       >
         <el-table-column v-if="canOperateTasks" type="selection" width="40" />
-        <el-table-column label="任务名称" min-width="150">
+        <el-table-column label="任务名称" min-width="100">
           <template #default="{ row }">
             <div class="task-name-cell">
               <el-icon v-if="row.is_pinned" class="pin-icon" :class="{ 'is-readonly': !canOperateTasks }" @click.stop="canOperateTasks && handlePin(row)"><Star /></el-icon>
@@ -847,7 +847,7 @@ async function handleImport(event: Event) {
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="命令 / 脚本" min-width="140">
+        <el-table-column label="命令 / 脚本" min-width="100">
           <template #default="{ row }">
             <code class="command-text">
               <template v-if="splitTaskCommandDisplay(row.command).script">
@@ -870,7 +870,7 @@ async function handleImport(event: Event) {
             <span v-else class="text-muted">{{ getTaskTypeLabel(row.task_type) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column label="状态" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small" round :class="row.status === 2 ? 'tag-with-dot' : ''">
               <span v-if="row.status === 2" class="pulse-dot"></span>
@@ -878,26 +878,26 @@ async function handleImport(event: Event) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="最后运行" width="140" align="center">
+        <el-table-column label="最后运行" width="160" align="center">
           <template #default="{ row }">
             <span v-if="row.last_run_at" class="time-text">{{ formatTime(row.last_run_at) }}</span>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="下次运行" width="140" align="center">
+        <el-table-column label="下次运行" width="160" align="center">
           <template #default="{ row }">
             <span v-if="row.next_run_at" class="time-text">{{ formatTime(row.next_run_at) }}</span>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="上次结果" width="90" align="center">
+        <el-table-column label="上次结果" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getRunStatusType(row.last_run_status)" size="small" round>
               {{ getRunStatusText(row.last_run_status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="耗时" width="80" align="center">
+        <el-table-column label="耗时" width="90" align="center">
           <template #default="{ row }">
             <span v-if="row.last_running_time != null" class="time-text">{{ row.last_running_time.toFixed(1) }}s</span>
             <span v-else class="text-muted">-</span>
@@ -1270,7 +1270,7 @@ async function handleImport(event: Event) {
 
 .time-text {
   font-family: var(--dd-font-mono);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--el-text-color-regular);
 }
 

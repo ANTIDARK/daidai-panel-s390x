@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,6 +28,21 @@ type managedRuntimePaths struct {
 }
 
 var managedPythonVenvMu sync.Mutex
+
+var windowsShellSearchDirs = []string{
+	filepath.Join(os.Getenv("ProgramFiles"), "Git", "bin"),
+	filepath.Join(os.Getenv("ProgramFiles"), "Git", "usr", "bin"),
+	filepath.Join(os.Getenv("ProgramFiles(x86)"), "Git", "bin"),
+	filepath.Join(os.Getenv("ProgramFiles(x86)"), "Git", "usr", "bin"),
+}
+
+var windowsPythonPreferredDirs = []string{
+	filepath.Join(os.Getenv("LocalAppData"), "Programs", "Python", "Python314"),
+	filepath.Join(os.Getenv("LocalAppData"), "Programs", "Python", "Python313"),
+	filepath.Join(os.Getenv("LocalAppData"), "Programs", "Python", "Python312"),
+	filepath.Join(os.Getenv("LocalAppData"), "Programs", "Python", "Python311"),
+	filepath.Join(os.Getenv("LocalAppData"), "Programs", "Python", "Python310"),
+}
 
 // pythonEnvBootstrap 只负责三件事：
 //  1. 从 env.json 注入任务环境变量到 os.environ
@@ -168,8 +184,25 @@ func ensureManagedPythonVenv(syncCreate bool) bool {
 	}
 
 	_ = os.MkdirAll(filepath.Dir(venvDir), 0o755)
-	cmd := exec.Command("python3", "-m", "venv", venvDir)
-	return cmd.Run() == nil
+	var lastErr error
+	for _, candidate := range managedPythonBootstrapCommands() {
+		// v2.2.4 重构 bootstrap 命令表时漏了把 venvDir 拼到 args 末尾，
+		// 导致执行的是 `python3 -m venv`（不带目标路径）必然失败。venv 永远建不出来，
+		// ResolveManagedPipBinary 返回空，自动安装 fallback 到系统 pip3，
+		// Alpine/Debian 上的 PEP 668 把"externally-managed-environment"砸到用户脸上。
+		args := append(append([]string(nil), candidate.args...), venvDir)
+		cmd := exec.Command(candidate.binary, args...)
+		out, runErr := cmd.CombinedOutput()
+		if runErr == nil {
+			log.Printf("managed python venv created at %s using %s", venvDir, candidate.binary)
+			return true
+		}
+		lastErr = fmt.Errorf("%s %v failed: %v: %s", candidate.binary, args, runErr, strings.TrimSpace(string(out)))
+	}
+	if lastErr != nil {
+		log.Printf("warn: managed python venv create failed: %v (auto-install will fall back to system pip with --break-system-packages)", lastErr)
+	}
+	return false
 }
 
 func EnsureManagedPythonVenv() bool {
@@ -220,9 +253,10 @@ func ResolveManagedPipBinary() string {
 func createManagedPythonCommand(scriptPath string, scriptArgs []string, workDir string, envVars map[string]string, runtimePaths managedRuntimePaths) (*exec.Cmd, func(), error) {
 	EnsureManagedPythonVenv()
 	runtimePaths = currentManagedRuntimePaths()
-	pythonBin, err := resolveManagedBinary("python3", []string{runtimePaths.VenvBin}, runtimePaths.searchDirs)
+	preferredDirs := append([]string{runtimePaths.VenvBin}, windowsPythonPreferredDirs...)
+	pythonBin, err := resolveManagedBinary("python", preferredDirs, runtimePaths.searchDirs)
 	if err != nil {
-		pythonBin, err = resolveManagedBinary("python", []string{runtimePaths.VenvBin}, runtimePaths.searchDirs)
+		pythonBin, err = resolveManagedBinary("python3", preferredDirs, runtimePaths.searchDirs)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -239,7 +273,7 @@ func createManagedPythonCommand(scriptPath string, scriptArgs []string, workDir 
 
 	cmd := exec.Command(pythonBin, args...)
 	cmd.Dir = workDir
-	cmd.Env = buildBootstrapProcessEnv(envVars)
+	cmd.Env = appendPythonBootstrapEnv(buildBootstrapProcessEnv(envVars))
 	setPgid(cmd)
 	return cmd, cleanup, nil
 }
@@ -341,12 +375,32 @@ func createStandardManagedCommand(interpreter, scriptPath string, scriptArgs []s
 func standardBinaryPreferredDirs(interpreter string, runtimePaths managedRuntimePaths) []string {
 	switch interpreter {
 	case "bash":
+		if runtime.GOOS == "windows" {
+			return windowsShellSearchDirs
+		}
 		return nil
 	case "go":
 		return nil
 	default:
 		return nil
 	}
+}
+
+type managedBootstrapCommand struct {
+	binary string
+	args   []string
+}
+
+func managedPythonBootstrapCommands() []managedBootstrapCommand {
+	commands := []managedBootstrapCommand{
+		{binary: "python3", args: []string{"-m", "venv"}},
+		{binary: "python", args: []string{"-m", "venv"}},
+	}
+	if runtime.GOOS == "windows" {
+		commands = append(commands, managedBootstrapCommand{binary: "py", args: []string{"-3", "-m", "venv"}})
+		commands = append(commands, managedBootstrapCommand{binary: "py", args: []string{"-m", "venv"}})
+	}
+	return commands
 }
 
 func buildBootstrapProcessEnv(envVars map[string]string) []string {
@@ -368,6 +422,26 @@ func buildBootstrapProcessEnv(envVars map[string]string) []string {
 	}
 
 	return AppendProxyEnv(env)
+}
+
+func appendPythonBootstrapEnv(env []string) []string {
+	hasUTF8 := false
+	hasEncoding := false
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "PYTHONUTF8=") {
+			hasUTF8 = true
+		}
+		if strings.HasPrefix(entry, "PYTHONIOENCODING=") {
+			hasEncoding = true
+		}
+	}
+	if !hasUTF8 {
+		env = append(env, "PYTHONUTF8=1")
+	}
+	if !hasEncoding {
+		env = append(env, "PYTHONIOENCODING=utf-8")
+	}
+	return env
 }
 
 func writeManagedRuntimeEnvFile(envVars map[string]string) (string, string, func(), error) {

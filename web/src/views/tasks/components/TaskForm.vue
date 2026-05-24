@@ -34,6 +34,7 @@ const form = ref({
   task_before: '',
   task_after: '',
   allow_multiple_instances: false,
+  group_name: '',
 })
 
 const labelInput = ref('')
@@ -44,7 +45,7 @@ const { dialogFullscreen } = useResponsive()
 
 watch(() => props.visible, (val) => {
   if (val && props.task) {
-    const { editableLabels, internalLabels: hiddenLabels } = splitTaskLabels(props.task.labels || [])
+    const { editableLabels, internalLabels: hiddenLabels, groupName } = splitTaskLabels(props.task.labels || [])
     internalLabels.value = hiddenLabels
     const taskRandomDelay = typeof props.task.random_delay_seconds === 'number'
       ? props.task.random_delay_seconds
@@ -71,6 +72,7 @@ watch(() => props.visible, (val) => {
       notify_on_success: props.task.notify_on_success ?? false,
       notification_channel_id: props.task.notification_channel_id ?? null,
       labels: editableLabels,
+      group_name: groupName,
       depends_on: props.task.depends_on || null,
       task_before: props.task.task_before || '',
       task_after: props.task.task_after || '',
@@ -86,7 +88,7 @@ watch(() => props.visible, (val) => {
       task_type: p?.task_type || 'cron',
       timeout: 86400, random_delay_seconds: null, max_retries: 0, retry_interval: 60,
       notify_on_failure: false, notify_on_success: false, notification_channel_id: null, labels: [], depends_on: null,
-      task_before: '', task_after: '', allow_multiple_instances: false,
+      task_before: '', task_after: '', allow_multiple_instances: false, group_name: '',
     }
   }
   activeTab.value = 'basic'
@@ -141,7 +143,7 @@ function handleSubmit() {
   } else {
     data.cron_expression = ''
   }
-  data.labels = mergeTaskLabels(form.value.labels, internalLabels.value)
+  data.labels = mergeTaskLabels(form.value.labels, internalLabels.value, form.value.group_name)
   if (!data.task_before) data.task_before = ''
   if (!data.task_after) data.task_after = ''
   emit('submit', data)
@@ -206,6 +208,9 @@ function handleSubmit() {
                 @keyup.enter="addLabel"
               />
             </div>
+          </el-form-item>
+          <el-form-item label="任务分组">
+            <el-input v-model="form.group_name" placeholder="例如 京东 / 日常 / 中国联通" />
           </el-form-item>
         </el-form>
       </el-tab-pane>

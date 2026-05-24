@@ -17,6 +17,7 @@ import (
 	"daidai-panel/middleware"
 	"daidai-panel/model"
 	"daidai-panel/pkg/response"
+	"daidai-panel/pkg/validator"
 	"daidai-panel/service"
 
 	"github.com/gin-gonic/gin"
@@ -53,7 +54,7 @@ func (h *AuthHandler) Init(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case service.ErrInvalidUsername:
-			response.BadRequest(c, "用户名需 3-32 位，仅支持字母数字下划线")
+			response.BadRequest(c, "用户名需 1-32 位，支持中文、字母、数字和下划线")
 		case service.ErrPasswordTooShort:
 			response.BadRequest(c, "密码长度需 6-128 位")
 		default:
@@ -273,6 +274,48 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	response.Success(c, gin.H{"message": "密码修改成功，请重新登录"})
 }
 
+func (h *AuthHandler) ChangeUsername(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数错误")
+		return
+	}
+
+	newUsername := strings.TrimSpace(req.Username)
+	if !validator.ValidateUsername(newUsername) {
+		response.BadRequest(c, "用户名需 1-32 位，支持中文、字母、数字和下划线")
+		return
+	}
+
+	currentUsername, _ := c.Get("username")
+	if newUsername == currentUsername.(string) {
+		response.BadRequest(c, "新用户名与当前用户名相同")
+		return
+	}
+
+	var existing model.User
+	if err := database.DB.Where("username = ?", newUsername).First(&existing).Error; err == nil {
+		response.BadRequest(c, "该用户名已被使用")
+		return
+	}
+
+	var user model.User
+	if err := database.DB.Where("username = ?", currentUsername).First(&user).Error; err != nil {
+		response.NotFound(c, "用户不存在")
+		return
+	}
+
+	if err := database.DB.Model(&user).Update("username", newUsername).Error; err != nil {
+		response.InternalError(c, "修改用户名失败")
+		return
+	}
+
+	service.RevokeAllUserSessions(user.ID)
+	response.Success(c, gin.H{"message": "用户名修改成功，请重新登录", "user": user.ToDict()})
+}
+
 func (h *AuthHandler) CaptchaConfig(c *gin.Context) {
 	cfg := service.GetCaptchaRuntimeConfig()
 	username := c.Query("username")
@@ -423,6 +466,7 @@ func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup) {
 		auth.POST("/refresh", h.Refresh)
 		auth.GET("/user", middleware.JWTAuth(), h.GetUser)
 		auth.PUT("/password", middleware.JWTAuth(), h.ChangePassword)
+		auth.PUT("/username", middleware.JWTAuth(), h.ChangeUsername)
 		auth.GET("/captcha-config", h.CaptchaConfig)
 		auth.POST("/avatar", middleware.JWTAuth(), h.UploadAvatar)
 		auth.DELETE("/avatar", middleware.JWTAuth(), h.DeleteAvatar)

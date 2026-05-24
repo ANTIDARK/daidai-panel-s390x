@@ -41,8 +41,8 @@ function markDebugCodeChanged() {
 </script>
 
 <template>
-  <el-dialog v-model="showCodeRunner" title="代码运行器" :width="isMobile ? '98%' : '90%'" :fullscreen="isMobile" :close-on-click-modal="false" :top="isMobile ? '2vh' : '5vh'" destroy-on-close>
-    <div class="debug-container" :class="{ mobile: isMobile }">
+  <el-dialog v-model="showCodeRunner" title="代码运行器" :width="isMobile ? '98%' : '86%'" :fullscreen="isMobile" :close-on-click-modal="false" :top="isMobile ? '2vh' : '3vh'" destroy-on-close>
+    <div class="debug-container debug-dialog-container" :class="{ mobile: isMobile }">
       <div class="debug-code-panel">
         <div class="panel-header">
           <el-icon><Edit /></el-icon>
@@ -97,8 +97,8 @@ function markDebugCodeChanged() {
     </template>
   </el-dialog>
 
-  <el-dialog v-model="showDebugDialog" title="调试运行" :width="isMobile ? '98%' : '90%'" :fullscreen="isMobile" :close-on-click-modal="false" :top="isMobile ? '2vh' : '5vh'" destroy-on-close>
-    <div class="debug-container" :class="{ mobile: isMobile }">
+  <el-dialog v-model="showDebugDialog" title="调试运行" :width="isMobile ? '98%' : '86%'" :fullscreen="isMobile" :close-on-click-modal="false" :top="isMobile ? '2vh' : '3vh'" destroy-on-close>
+    <div class="debug-container debug-dialog-container" :class="{ mobile: isMobile }">
       <div class="debug-code-panel">
         <div class="panel-header">
           <el-icon><Edit /></el-icon>
@@ -154,7 +154,7 @@ function markDebugCodeChanged() {
 .debug-container {
   display: flex;
   gap: 16px;
-  height: min(68dvh, 760px);
+  height: min(76dvh, 860px);
   min-height: clamp(320px, 52dvh, 520px);
   max-height: calc(100dvh - 220px);
   min-width: 0;
@@ -171,6 +171,12 @@ function markDebugCodeChanged() {
   border-radius: 8px;
   overflow: hidden;
   background: var(--el-bg-color);
+}
+
+.debug-dialog-container {
+  height: min(64dvh, 680px);
+  min-height: clamp(280px, 46dvh, 430px);
+  max-height: calc(100dvh - 190px);
 }
 
 .panel-header {

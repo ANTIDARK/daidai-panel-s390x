@@ -166,6 +166,42 @@ const sponsorTabHint = computed(() => {
   return '本页每 24 小时静默同步一次'
 })
 
+const editingUsername = ref(false)
+const newUsername = ref('')
+const usernameSaving = ref(false)
+
+function startEditUsername() {
+  newUsername.value = authStore.user?.username || ''
+  editingUsername.value = true
+}
+
+async function saveUsername() {
+  const name = newUsername.value.trim()
+  if (!name) {
+    ElMessage.warning('用户名不能为空')
+    return
+  }
+  if (!/^[\p{L}\p{N}_]{1,32}$/u.test(name)) {
+    ElMessage.warning('用户名需 1-32 位，支持中文、字母、数字和下划线')
+    return
+  }
+  if (name === authStore.user?.username) {
+    editingUsername.value = false
+    return
+  }
+  usernameSaving.value = true
+  try {
+    await authApi.changeUsername(name)
+    ElMessage.success('用户名修改成功，请重新登录')
+    editingUsername.value = false
+    authStore.logout()
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.error || '修改用户名失败')
+  } finally {
+    usernameSaving.value = false
+  }
+}
+
 const usernameInitial = computed(() => {
   const name = authStore.user?.username || ''
   if (!name) return '用'
@@ -489,7 +525,15 @@ onUnmounted(() => {
             <div class="info-grid">
               <div class="info-cell">
                 <span class="info-label">用户名</span>
-                <span class="info-value">{{ authStore.user?.username || '-' }}</span>
+                <div v-if="editingUsername" style="display: flex; align-items: center; gap: 8px">
+                  <el-input v-model="newUsername" size="small" style="width: 180px" placeholder="输入新用户名" @keyup.enter="saveUsername" />
+                  <el-button size="small" type="primary" :loading="usernameSaving" @click="saveUsername">保存</el-button>
+                  <el-button size="small" @click="editingUsername = false">取消</el-button>
+                </div>
+                <span v-else class="info-value">
+                  {{ authStore.user?.username || '-' }}
+                  <el-button text size="small" style="margin-left: 8px" @click="startEditUsername">修改</el-button>
+                </span>
               </div>
               <div class="info-cell">
                 <span class="info-label">角色</span>

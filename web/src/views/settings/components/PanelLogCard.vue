@@ -201,8 +201,8 @@ const renderedHtml = computed(() => ansiToHtml(normalizeAnsi(props.logs.join('\n
 }
 
 .panel-log-view {
-  min-height: 480px;
-  max-height: 68vh;
+  min-height: 540px;
+  max-height: 76vh;
   overflow: auto;
   padding: 18px 20px;
 }

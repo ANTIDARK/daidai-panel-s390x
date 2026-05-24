@@ -47,6 +47,9 @@ export function useSettingsSecurity() {
     scripts: true,
     dependencies: true,
   })
+  const uploadProgress = ref(-1)
+  const uploadUploading = ref(false)
+
   const showRestoreDialog = ref(false)
   const restoreFilename = ref('')
   const restorePassword = ref('')
@@ -126,8 +129,12 @@ export function useSettingsSecurity() {
       input.value = ''
       return
     }
+    uploadUploading.value = true
+    uploadProgress.value = 0
     try {
-      await systemApi.uploadBackup(file)
+      await systemApi.uploadBackup(file, (percent) => {
+        uploadProgress.value = percent
+      })
       ElMessage.success('备份文件导入成功')
       void loadBackups()
     } catch (err: any) {
@@ -137,6 +144,8 @@ export function useSettingsSecurity() {
         ElMessage.error(err?.response?.data?.error || err?.message || '导入备份失败')
       }
     }
+    uploadUploading.value = false
+    uploadProgress.value = -1
     input.value = ''
   }
 
@@ -615,6 +624,8 @@ export function useSettingsSecurity() {
     backupPassword,
     backupSelection,
     backupScheduleSelection,
+    uploadProgress,
+    uploadUploading,
     showRestoreDialog,
     restoreFilename,
     restorePassword,

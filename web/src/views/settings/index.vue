@@ -112,6 +112,8 @@ const {
   backupPassword,
   backupSelection,
   backupScheduleSelection,
+  uploadProgress,
+  uploadUploading,
   showRestoreDialog,
   restoreFilename,
   restorePassword,
@@ -396,6 +398,8 @@ watch(
           :restore-progress-started-at="restoreProgressStartedAt"
           :restore-restart-countdown="restoreRestartCountdown"
           :restore-progress-error="restoreProgressError"
+          :upload-progress="uploadProgress"
+          :upload-uploading="uploadUploading"
           :on-create-backup="handleCreateBackup"
           :on-upload-backup="handleUploadBackup"
           :on-confirm-create-backup="confirmCreateBackup"
